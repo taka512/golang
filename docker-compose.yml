@@ -1,0 +1,26 @@
+version: "3"
+services:
+  go:
+    container_name: go.local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/home/go/app
+    working_dir: /home/go/app
+    tty: true
+  mysql:
+    container_name: mysql.local
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: mypass
+      TZ: "Asia/Tokyo"
+    volumes:
+      - db-data:/var/lib/mysql:delegated
+      - ./docker/mysql/conf/my80.cnf:/etc/mysql/my.cnf:cached
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:cached
+volumes:
+  db-data:
+    driver: local

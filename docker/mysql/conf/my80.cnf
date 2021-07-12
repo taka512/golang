@@ -1,0 +1,11 @@
+[mysqld]
+skip-innodb_doublewrite
+skip-name-resolve
+innodb_flush_log_at_trx_commit = 2
+secure-file-priv = NULL
+datadir = /var/lib/mysql
+character-set-server = utf8mb4
+default_authentication_plugin=mysql_native_password
+
+[client]
+default-character-set = utf8mb4
