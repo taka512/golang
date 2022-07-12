@@ -1,4 +1,4 @@
 FROM golang:1.16-alpine
 
 RUN apk update && \
-    apk add git
+    apk add git make

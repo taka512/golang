@@ -1,0 +1,30 @@
+package main
+
+import (
+	"database/sql"
+	"flag"
+	"fmt"
+
+	_ "github.com/go-sql-driver/mysql"
+)
+
+func main() {
+	f := flag.String("table", "sample1", "target table")
+	flag.Parse()
+	fmt.Printf("table:%s\n", *f)
+
+	db, err := sql.Open("mysql", "root:mypass@(go.mysql.local:3307)/test")
+	if err != nil {
+		fmt.Println("db error.")
+		panic(err)
+	}
+	defer db.Close()
+	ins, err := db.Prepare(fmt.Sprintf("INSERT INTO %s(icol,v16col,v64col,v255col,v256col) VALUES(?,?,?,?,?)", *f))
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	for i := 1; i < 100000; i++ {
+		ins.Exec(i, i, i, i, i)
+	}
+}

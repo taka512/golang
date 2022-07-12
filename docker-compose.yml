@@ -10,8 +10,10 @@ services:
     working_dir: /home/go/app
     tty: true
   mysql:
-    container_name: mysql.local
+    container_name: go.mysql.local
     image: mysql:8.0
+    # for m1 mac
+    platform: linux/x86_64
     ports:
       - "3307:3307"
     environment:
