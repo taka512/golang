@@ -8,11 +8,11 @@ help:
 docker/prune:
 	docker system prune
 docker/up: ## containers up
-	docker-compose up -d
+	docker compose up -d
 docker/logs: ## display containers log
-	docker-compose logs -f
+	docker compose logs -f
 docker/stop: ## stop containers
-	docker-compose stop
+	docker compose stop
 docker/buid: ## build container
 	docker build ./ -t $(NAME)
 docker/ssh: ## connect in container

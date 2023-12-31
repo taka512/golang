@@ -15,16 +15,24 @@ func main() {
 
 	db, err := sql.Open("mysql", "root:mypass@(go.mysql.local:3307)/test")
 	if err != nil {
-		fmt.Println("db error.")
 		panic(err)
 	}
 	defer db.Close()
-	ins, err := db.Prepare(fmt.Sprintf("INSERT INTO %s(icol,v16col,v64col,v255col,v256col) VALUES(?,?,?,?,?)", *f))
+	tx, err := db.Begin()
 	if err != nil {
-		fmt.Println(err)
 		panic(err)
 	}
-	for i := 1; i < 100000; i++ {
-		ins.Exec(i, i, i, i, i)
+	del1, err := db.Prepare(fmt.Sprintf("DELETE FROM %s_ko", *f))
+	if err != nil {
+		panic(err)
 	}
+	stmt1 := tx.Stmt(del1)
+	stmt1.Exec()
+	del2, err := db.Prepare(fmt.Sprintf("DELETE FROM %s_oya", *f))
+	if err != nil {
+		panic(err)
+	}
+	stmt2 := tx.Stmt(del2)
+	stmt2.Exec()
+	tx.Commit()
 }
