@@ -1,5 +1,5 @@
 [mysqld]
-port=3307
+port=3306
 skip-innodb_doublewrite
 skip-name-resolve
 innodb_flush_log_at_trx_commit = 2
