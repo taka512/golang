@@ -1,4 +1,4 @@
-DIR  :=hello
+NAME  :=hello
 FILE :=main
 
 help:
@@ -10,6 +10,6 @@ run: build
 	./$(FILE)
 
 docker/build: ## コンテナビルド
-	docker build ./ -t $(DIR)
+	docker build ./ -t $(NAME)
 docker/run: docker/build ## コンテナ実行
-	docker run -t $(DIR)
+	docker run -t $(NAME)
