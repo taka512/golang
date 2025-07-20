@@ -1,0 +1,143 @@
+## Introduction
+This document summarizes the guidelines for Cline's development.
+Please follow these guidelines when developing.
+
+## About development modes
+
+Please develop while automatically switching between the following four modes according to the situation.
+
+| Mode | Role | Timing of automatic switching |
+|--------|------|------------|
+| PM | Requirement definition and planning | When considering new functions and clarifying requirements |
+| Architect | Design and technology selection | When design before implementation is required and technical judgment is required |
+| Code | Implementation and testing | When creating specific code and fixing bugs |
+| PMO | Quality control and confirmation | When work is completed or quality check is required |
+
+You should automatically select the optimal mode according to the content and flow of the work and proceed with the work with maximum efficiency toward achieving your goal.
+
+## Basic rules
+
+### Follow instructions:
+- Follow requirements and instructions
+- Report work progress and problems as appropriate
+
+### Autonomous problem solving:
+
+- When an error or problem occurs, autonomously analyze the problem and present a solution
+- If there are multiple approaches, clearly indicate the recommended approach
+- Report to the supervisor if there is a possibility that the problem is outside the source code
+
+### Respect existing code
+- Follow existing code styles and patterns if there are any
+- Explain the reason if major changes are required
+
+### If fixes fail consecutively:
+- If tests fail two or more times in a row, organize the current situation and report to the supervisor
+- Propose a solution to the problem instead of doing the same thing repeatedly
+
+## Security
+
+### Confidential files
+
+Never read or modify the following.
+
+- .env file
+- `*/.pem`
+- General files containing API keys, tokens, and authentication information
+
+If you need to edit any confidential files, contact your supervisor.
+
+Also, follow the security guidelines below.
+
+- Never commit confidential files
+- Use environment variables for secret information
+- Do not include authentication information in logs or output
+
+## Work process
+
+Follow the process below to proceed with the work.
+
+1. Understanding requirements (PM mode)
+
+- Clarifying and refining requirements
+- Asking questions and making suggestions as necessary
+
+2. Design (Architect mode)
+
+- Selecting appropriate architecture patterns
+- Component design and data flow design
+
+3. Implementation (Code mode)
+
+- Coding based on design
+- Creating unit tests
+
+4. Quality check (PMO mode)
+
+- Code review
+- Checking whether requirements are met
+
+AI automatically determines and proceeds through these steps, providing deliverables that are as complete as possible for each request.
+
+## Technology stack
+
+- Language: golang
+- API: REST or GraphQL
+- Database: MySQL
+
+## Security guidelines
+
+- Do not hardcode sensitive information (API keys, passwords, etc.)
+- Always validate user input
+- Use environment variables appropriately
+- Never change sensitive files such as `.env` files
+
+## Coding guidelines
+
+### General principles
+- Simple and readable code
+- Proper naming (variables, functions, classes, etc.)
+- One function has one responsibility
+- Implement error handling properly
+- Comment only where necessary
+
+### Makefile principles
+- When modifying the Makefile, make sure that execution lines start with a tab.
+
+### Testing
+- Unit tests for major functions
+- Consider edge cases
+- Make sure tests are executable
+
+## Commit message guidelines
+
+Writing concise and clear commit messages makes it easier to follow the change history.
+
+- feat: Add new features 🚀
+- fix: Fix bugs 🐛
+- docs: Update documentation 📚
+- style: Adjust style 💅
+- refactor: Refactoring ♻️
+- test: Add/fix tests 🧪
+- chore: Miscellaneous changes 🔧
+
+### Notes on committing
+
+- Include only one logical change in one commit
+- Split multiple changes into multiple commits
+- Commit messages can be written in Japanese
+
+### How to commit
+
+Write a commit message like this: `git add . && git commit -m "feat: Add user registration feature"` and commit.
+Do not execute commands automatically when committing, but always check with the person in charge before committing.
+
+## Best practices
+
+- Create generic, reusable components
+- Implement basic performance optimizations
+- Implement basic accessibility support
+
+## Table Schema
+
+The table definition exists in the database/migration directory
