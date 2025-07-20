@@ -7,6 +7,7 @@
 - プログラムがビルド済みであること
 - MySQLデータベースにアクセス可能であること
 - 必要なテーブルとデータが存在すること
+- Slack通知を使用する場合は、Slack Webhook URLが準備されていること
 
 ## 最初の実行
 
@@ -244,6 +245,183 @@ cd cmd/roo-code-profit-trend-display
 ./bin/profit-trend-display -stats=false
 ```
 
+## Slack通知機能の使用例
+
+### 1. Slack Webhook URLの設定
+
+```bash
+# 環境変数でSlack Webhook URLを設定
+export SLACK_HOOK="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+
+# 設定の確認
+echo $SLACK_HOOK
+```
+
+### 2. Slack通知付きで実行
+
+```bash
+# 基本的なSlack通知実行（過去30日間）
+./bin/profit-trend-display -slack
+
+# 過去7日間の分析結果をSlackに通知
+./bin/profit-trend-display -slack -days 7
+
+# サマリーのみをSlackに通知
+./bin/profit-trend-display -slack -summary
+
+# 大きなチャートでSlack通知
+./bin/profit-trend-display -slack -width 80 -height 20
+```
+
+**Slack通知付き実行結果例**:
+```
+=== 粗利推移表示プログラム ===
+分析期間: 過去7日間
+接続先: root:***@tcp(mysql.local:3306)/sample_mysql?parseTime=true
+Slack通知: 有効
+
+対象期間: 2024-07-14 から 2024-07-20 まで
+
+データを取得中...
+取得データ数: 14件
+データを分析中...
+
+=== 分析結果 ===
+対象組織数: 2
+
+(1/2) [株式会社テスト - 東京倉庫] 粗利推移 (過去7日間)
+========================================
+
+    500 ┬   ●       ●
+    400 ┤ ●   ●   ●   ●
+    300 ┤       ●       ●
+    200 ┤               
+    100 ┤               
+      0 └─┬─┬─┬─┬─┬─┬─
+        07/14 07/16 07/18 07/20
+
+統計情報:
+  最大粗利:        500 (07/15)
+  最小粗利:        300 (07/17)
+  平均粗利:        400
+  合計粗利:       2800
+  データ日数: 7日
+
+Slack通知を送信中...
+Slack通知送信完了
+
+分析完了!
+```
+
+### 3. 環境変数が未設定の場合
+
+```bash
+# SLACK_HOOK環境変数が設定されていない状態で-slackオプションを使用
+./bin/profit-trend-display -slack -days 7
+```
+
+**出力例**:
+```
+=== 粗利推移表示プログラム ===
+分析期間: 過去7日間
+接続先: root:***@tcp(mysql.local:3306)/sample_mysql?parseTime=true
+Slack通知: 無効（SLACK_HOOK環境変数が未設定）
+
+対象期間: 2024-07-14 から 2024-07-20 まで
+
+データを取得中...
+取得データ数: 14件
+データを分析中...
+
+=== 分析結果 ===
+対象組織数: 2
+
+Slack通知が無効のため、通知をスキップします
+
+分析完了!
+```
+
+### 4. ワンライナーでの実行
+
+```bash
+# 環境変数設定と同時に実行
+SLACK_HOOK="https://hooks.slack.com/services/..." ./bin/profit-trend-display -slack -days 14 -summary
+
+# 本番環境での実行例
+SLACK_HOOK="${PROD_SLACK_WEBHOOK}" ./bin/profit-trend-display -slack -days 30 -dsn "${PROD_DB_DSN}"
+```
+
+### 5. Slack通知エラーの場合
+
+```bash
+# 無効なWebhook URLや接続エラーの場合
+export SLACK_HOOK="https://invalid-webhook-url.com/test"
+./bin/profit-trend-display -slack -days 7
+```
+
+**出力例**:
+```
+=== 粗利推移表示プログラム ===
+分析期間: 過去7日間
+接続先: root:***@tcp(mysql.local:3306)/sample_mysql?parseTime=true
+Slack通知: 有効
+
+対象期間: 2024-07-14 から 2024-07-20 まで
+
+データを取得中...
+取得データ数: 14件
+データを分析中...
+
+=== 分析結果 ===
+対象組織数: 2
+
+(詳細チャート表示)
+
+Slack通知を送信中...
+Slack通知送信に失敗しました: Post "https://invalid-webhook-url.com/test": dial tcp: lookup invalid-webhook-url.com: no such host
+
+分析完了!
+```
+
+**注意**: Slack通知エラーが発生しても、メイン処理は正常に継続されます。
+
+## Slackで受信されるメッセージ例
+
+### 正常終了時の通知
+
+```
+📊 粗利推移分析結果 (過去7日間)
+
+【全体統計】
+• 合計粗利: 245,000円
+• 平均粗利: 35,000円
+• 最大粗利: 55,000円 (07/18)
+• 最小粗利: 18,000円 (07/16)
+• 対象組織数: 2
+
+【組織別トップ3】
+1. 株式会社テスト - 東京倉庫: 140,000円
+2. 株式会社テスト - 大阪倉庫: 105,000円
+
+実行日時: 2024-07-20 14:30:25
+```
+
+### エラー発生時の通知
+
+```
+❌ 粗利分析エラー
+
+エラー内容: データベース接続エラー
+詳細: dial tcp 127.0.0.1:3306: connect: connection refused
+
+対処方法:
+• MySQLサーバーの起動状態を確認してください
+• ネットワーク接続を確認してください
+• DSN設定を確認してください
+
+発生日時: 2024-07-20 14:35:12
+```
+
 ## ヘルプの表示
 
 ```bash
@@ -266,13 +444,19 @@ cd cmd/roo-code-profit-trend-display
   -grid             グリッド線を表示 (default: true)
   -stats            統計情報を表示 (default: true)
   -summary          サマリーのみ表示 (default: false)
+  -slack            Slack通知を有効化 (default: false)
   -help             このヘルプを表示
+
+環境変数:
+  SLACK_HOOK        SlackのIncoming Webhook URL
 
 例:
   profit-trend-display                    # デフォルト設定で実行
   profit-trend-display -days 7            # 過去7日間を分析
   profit-trend-display -summary           # サマリーのみ表示
-  profit-trend-display -width 80 -height 20  # グラフサイズ変更
+  profit-trend-display -slack             # Slack通知付きで実行
+  profit-trend-display -slack -days 14 -summary  # 14日間サマリーをSlack通知
+  profit-trend-display -width 80 -height 20      # グラフサイズ変更
 
 機能:
   - 売上データと原価データから粗利を計算
@@ -280,6 +464,7 @@ cd cmd/roo-code-profit-trend-display
   - テキストベースのグラフで推移を視覚化
   - 統計情報（最大・最小・平均・合計）を表示
   - 欠損日のデータは0として補完
+  - Slack通知による結果共有
 ```
 
 ## よくある初回実行での問題
@@ -321,6 +506,28 @@ make build
 go build -o bin/profit-trend-display .
 ```
 
+### 4. Slack通知関連の問題
+
+#### Webhook URLが無効な場合
+```bash
+Slack通知送信に失敗しました: Post "https://hooks.slack.com/services/...": 404 page not found
+```
+
+**対処法**:
+- Slack Webhook URLが正しいか確認
+- Slackアプリの設定を確認
+- Webhook URLの有効期限を確認
+
+#### ネットワーク接続エラー
+```bash
+Slack通知送信に失敗しました: dial tcp: lookup hooks.slack.com: no such host
+```
+
+**対処法**:
+- インターネット接続を確認
+- ファイアウォール設定を確認
+- プロキシ設定が必要な場合は環境変数を設定
+
 ## 次のステップ
 
 基本的な実行ができたら、以下の応用例も試してみてください：
@@ -328,7 +535,11 @@ go build -o bin/profit-trend-display .
 1. **[カスタム設定例](custom-settings.md)** - より詳細な設定オプション
 2. **[出力サンプル](output-samples/)** - 様々な設定での出力例
 3. **[高度な使用例](../advanced-usage/)** - バッチ処理や自動化
+4. **[自動化ガイド](../../tutorials/automation-guide.md)** - Slack統合を含む自動化
 
 ---
 
-**💡 ヒント**: 初回実行時は `-days 7 -summary` オプションで軽量な実行を試してみることをお勧めします。
+**💡 ヒント**: 
+- 初回実行時は `-days 7 -summary` オプションで軽量な実行を試してみることをお勧めします
+- Slack通知をテストする際は、まず少ないデータで `-slack -days 1 -summary` を試してください
+- 本番環境では環境変数を適切に設定し、セキュリティに注意してください

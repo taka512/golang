@@ -51,3 +51,30 @@ type ChartConfig struct {
 	ShowGrid  bool    `json:"show_grid"`
 	ShowStats bool    `json:"show_stats"`
 }
+
+// NotificationConfig contains configuration for notifications
+type NotificationConfig struct {
+	SlackEnabled    bool   `json:"slack_enabled"`
+	SlackWebhookURL string `json:"slack_webhook_url"`
+}
+
+// SlackMessage represents a Slack message structure
+type SlackMessage struct {
+	Text        string       `json:"text"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment represents a Slack message attachment
+type Attachment struct {
+	Color  string  `json:"color"`
+	Title  string  `json:"title"`
+	Text   string  `json:"text,omitempty"`
+	Fields []Field `json:"fields,omitempty"`
+}
+
+// Field represents a field in a Slack attachment
+type Field struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
+}

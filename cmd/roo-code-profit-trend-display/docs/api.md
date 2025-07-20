@@ -2,7 +2,7 @@
 
 ## 1. 概要
 
-`roo-code-profit-trend-display` は現在コマンドラインインターフェース（CLI）のみを提供していますが、将来的なAPI化を見据えた内部アーキテクチャを採用しています。
+`roo-code-profit-trend-display` は現在コマンドラインインターフェース（CLI）のみを提供していますが、将来的なAPI化を見据えた内部アーキテクチャを採用しています。また、Slack通知機能により分析結果をリアルタイムでチームに共有することができます。
 
 ## 2. CLI API仕様
 
@@ -32,7 +32,19 @@ profit-trend-display [OPTIONS] [DAYS]
 | `-stats` | bool | true | No | 統計情報表示フラグ |
 | `-summary` | bool | false | No | サマリーのみ表示フラグ |
 
-#### 2.2.3 位置引数
+#### 2.2.3 通知制御オプション
+
+| オプション | 型 | デフォルト値 | 必須 | 説明 |
+|------------|-----|-------------|------|------|
+| `-slack` | bool | false | No | Slack通知有効化フラグ |
+
+#### 2.2.4 環境変数
+
+| 変数名 | 型 | 必須 | 説明 |
+|--------|-----|------|------|
+| `SLACK_HOOK` | string | No | SlackのIncoming Webhook URL |
+
+#### 2.2.5 位置引数
 
 | 引数 | 型 | デフォルト値 | 必須 | 説明 |
 |------|-----|-------------|------|------|
@@ -74,13 +86,32 @@ profit-trend-display [OPTIONS] [DAYS]
 ./bin/profit-trend-display -dsn "prod_user:${DB_PASS}@tcp(prod-db:3306)/production_db?parseTime=true"
 ```
 
+#### 2.3.4 Slack通知設定と実行
+
+```bash
+# 環境変数でSlack Webhook URLを設定
+export SLACK_HOOK="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+
+# Slack通知付きで実行（過去7日間）
+./bin/profit-trend-display -slack -days 7
+
+# Slack通知付きサマリー実行
+./bin/profit-trend-display -slack -summary
+
+# 環境変数が設定されていない場合は通知なしで実行
+./bin/profit-trend-display -slack -days 30
+
+# ワンライナーでの実行例
+SLACK_HOOK="https://hooks.slack.com/services/..." ./bin/profit-trend-display -slack -days 14 -summary
+```
+
 ### 2.4 戻り値
 
 #### 2.4.1 終了コード
 
 | コード | 意味 | 説明 |
 |--------|------|------|
-| 0 | 正常終了 | 処理が正常に完了 |
+| 0 | 正常終了 | 処理が正常に完了（Slack通知エラーがあっても処理継続） |
 | 1 | 一般エラー | 予期しないエラーが発生 |
 | 2 | 設定エラー | 引数やDSNの設定に問題 |
 | 3 | データベースエラー | DB接続や SQL実行でエラー |
@@ -88,6 +119,7 @@ profit-trend-display [OPTIONS] [DAYS]
 
 #### 2.4.2 標準出力
 
+##### 通常実行時
 ```
 === 粗利推移表示プログラム ===
 分析期間: 過去30日間
@@ -123,6 +155,46 @@ profit-trend-display [OPTIONS] [DAYS]
 分析完了!
 ```
 
+##### Slack通知有効時
+```
+=== 粗利推移表示プログラム ===
+分析期間: 過去30日間
+接続先: root:***@tcp(mysql.local:3306)/sample_mysql?parseTime=true
+Slack通知: 有効
+
+対象期間: 2024-06-21 から 2024-07-20 まで
+
+データを取得中...
+取得データ数: 150件
+データを分析中...
+
+=== 分析結果 ===
+対象組織数: 2
+
+(1/2) [会社A - 倉庫1] 粗利推移 (過去30日間)
+========================================
+
+   1000 ┬                    ●
+    800 ┤                  ●   ●
+    600 ┤                ●       ●
+    400 ┤              ●           ●
+    200 ┤            ●               ●
+      0 └─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─
+        06/21   06/25   06/29   07/03   07/07
+
+統計情報:
+  最大粗利:       1000 (07/01)
+  最小粗利:        200 (07/15)
+  平均粗利:        600
+  合計粗利:      18000
+  データ日数: 30日
+
+Slack通知を送信中...
+Slack通知送信完了
+
+分析完了!
+```
+
 #### 2.4.3 標準エラー出力
 
 ```bash
@@ -134,6 +206,69 @@ profit-trend-display [OPTIONS] [DAYS]
 
 # 引数エラー
 無効な日数が指定されました: -5
+
+# Slack通知エラー（処理は継続）
+Slack通知送信に失敗しました: Post "https://hooks.slack.com/services/...": dial tcp: lookup hooks.slack.com: no such host
+
+# Slack Webhook URL未設定（-slackオプション使用時）
+Slack通知が無効のため、通知をスキップします
+```
+
+### 2.5 Slack通知機能詳細
+
+#### 2.5.1 通知トリガー
+
+| 条件 | 通知内容 | 通知タイミング |
+|------|----------|---------------|
+| `-slack`フラグ有効 + 正常終了 | 粗利サマリー情報 | 分析完了時 |
+| `-slack`フラグ有効 + エラー発生 | エラー詳細情報 | エラー検出時 |
+| SLACK_HOOK環境変数未設定 | 通知なし（ログ出力のみ） | - |
+
+#### 2.5.2 Slack メッセージフォーマット
+
+##### サマリー通知
+```
+📊 粗利推移分析結果 (過去30日間)
+
+【全体統計】
+• 合計粗利: 1,250,000円
+• 平均粗利: 41,667円
+• 最大粗利: 85,000円 (07/15)
+• 最小粗利: 12,000円 (07/02)
+• 対象組織数: 3
+
+【組織別トップ3】
+1. 株式会社A - 東京倉庫: 550,000円
+2. 株式会社A - 大阪倉庫: 420,000円
+3. 株式会社B - 福岡倉庫: 280,000円
+
+実行日時: 2024-07-20 09:00:00
+```
+
+##### エラー通知
+```
+❌ 粗利分析エラー
+
+エラー内容: データベース接続エラー
+詳細: dial tcp 127.0.0.1:3306: connect: connection refused
+
+対処方法:
+• MySQLサーバーの起動状態を確認してください
+• ネットワーク接続を確認してください
+• DSN設定を確認してください
+
+発生日時: 2024-07-20 09:05:23
+```
+
+#### 2.5.3 通知エラーハンドリング
+
+```bash
+# Slack通知エラーは処理を停止させない
+# 以下の場合はログ出力のみで処理継続：
+# - Webhook URLが無効
+# - ネットワークエラー
+# - Slack API エラー
+# - タイムアウト（10秒）
 ```
 
 ## 3. 内部API仕様
@@ -192,6 +327,37 @@ type ChartConfig struct {
     MaxValue  float64 `json:"max_value"`  // Y軸最大値
     ShowGrid  bool    `json:"show_grid"`  // グリッド表示
     ShowStats bool    `json:"show_stats"` // 統計表示
+}
+```
+
+#### 3.1.4 通知設定構造
+
+```go
+// NotificationConfig - 通知設定
+type NotificationConfig struct {
+    SlackEnabled    bool   `json:"slack_enabled"`    // Slack通知有効フラグ
+    SlackWebhookURL string `json:"slack_webhook_url"` // Slack Webhook URL
+}
+
+// SlackMessage - Slackメッセージ構造
+type SlackMessage struct {
+    Text        string       `json:"text"`
+    Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment - Slack添付ファイル構造
+type Attachment struct {
+    Color  string  `json:"color"`
+    Title  string  `json:"title"`
+    Text   string  `json:"text"`
+    Fields []Field `json:"fields"`
+}
+
+// Field - Slack フィールド構造
+type Field struct {
+    Title string `json:"title"`
+    Value string `json:"value"`
+    Short bool   `json:"short"`
 }
 ```
 
@@ -352,6 +518,66 @@ if showGrid && column%10 == 0 {
 }
 ```
 
+#### 3.2.4 通知サービス
+
+```go
+type SlackNotifierInterface interface {
+    // 粗利サマリー通知送信
+    SendProfitSummary(trends []ProfitTrend, period int) error
+    
+    // エラー通知送信
+    SendError(err error) error
+    
+    // 通知有効性確認
+    IsEnabled() bool
+}
+```
+
+**メソッド詳細**:
+
+##### SendProfitSummary
+
+```go
+func (s *SlackNotifier) SendProfitSummary(
+    trends []models.ProfitTrend, 
+    period int,
+) error
+```
+
+**処理内容**:
+1. 粗利データを整形してSlackメッセージを作成
+2. Webhook URLにHTTP POST送信
+3. エラーハンドリング（タイムアウト: 10秒）
+
+**メッセージ構造**:
+```go
+message := SlackMessage{
+    Text: fmt.Sprintf("📊 粗利推移分析結果 (過去%d日間)", period),
+    Attachments: []Attachment{
+        {
+            Color: "good",
+            Title: "全体統計",
+            Fields: []Field{
+                {Title: "合計粗利", Value: formatCurrency(totalProfit), Short: true},
+                {Title: "平均粗利", Value: formatCurrency(avgProfit), Short: true},
+                {Title: "対象組織数", Value: strconv.Itoa(orgCount), Short: true},
+            },
+        },
+    },
+}
+```
+
+##### SendError
+
+```go
+func (s *SlackNotifier) SendError(err error) error
+```
+
+**処理内容**:
+1. エラー情報を整形
+2. 緊急度に応じた色分け（danger）
+3. 対処方法の提案を含むメッセージ作成
+
 ## 4. 将来のREST API設計
 
 ### 4.1 エンドポイント設計
@@ -371,6 +597,7 @@ GET /api/v1/profit-trends
 | `company_ids` | []int | No | 全て | 対象会社ID配列 |
 | `warehouse_ids` | []int | No | 全て | 対象倉庫ID配列 |
 | `format` | string | No | json | 出力形式（json/csv/text） |
+| `notify_slack` | bool | No | false | Slack通知有効化 |
 
 **レスポンス例**:
 
@@ -380,7 +607,8 @@ GET /api/v1/profit-trends
         "start_date": "2024-06-21",
         "end_date": "2024-07-20",
         "total_organizations": 2,
-        "total_data_points": 60
+        "total_data_points": 60,
+        "slack_notified": true
     },
     "trends": [
         {
@@ -410,7 +638,33 @@ GET /api/v1/profit-trends
 }
 ```
 
-#### 4.1.2 チャート生成エンドポイント
+#### 4.1.2 Slack通知エンドポイント
+
+```
+POST /api/v1/profit-trends/notify
+```
+
+**リクエストボディ**:
+```json
+{
+    "start_date": "2024-06-21",
+    "end_date": "2024-07-20",
+    "webhook_url": "https://hooks.slack.com/services/...",
+    "message_template": "custom"
+}
+```
+
+**レスポンス例**:
+```json
+{
+    "status": "success",
+    "message": "Slack notification sent successfully",
+    "notification_id": "notif_12345",
+    "timestamp": "2024-07-20T12:00:00Z"
+}
+```
+
+#### 4.1.3 チャート生成エンドポイント
 
 ```
 GET /api/v1/profit-trends/chart
@@ -425,6 +679,7 @@ GET /api/v1/profit-trends/chart
 | `width` | int | No | 60 | チャート幅 |
 | `height` | int | No | 15 | チャート高さ |
 | `format` | string | No | text | 出力形式（text/svg/png） |
+| `notify_slack` | bool | No | false | チャート生成後のSlack通知 |
 
 **レスポンス（text形式）**:
 
@@ -443,7 +698,7 @@ Content-Type: text/plain; charset=utf-8
         06/21   06/25   06/29   07/03   07/07
 ```
 
-#### 4.1.3 統計情報エンドポイント
+#### 4.1.4 統計情報エンドポイント
 
 ```
 GET /api/v1/profit-trends/summary
@@ -473,7 +728,11 @@ GET /api/v1/profit-trends/summary
             "average_profit": 3000.0,
             "profit_ratio": 0.20
         }
-    ]
+    ],
+    "notification_status": {
+        "slack_enabled": true,
+        "last_notified": "2024-07-20T12:00:00Z"
+    }
 }
 ```
 
@@ -501,8 +760,10 @@ GET /api/v1/profit-trends/summary
 |------------|-------------|------|
 | 400 | `INVALID_DATE_RANGE` | 日付範囲が不正 |
 | 400 | `INVALID_PARAMETER` | パラメータ値が不正 |
+| 400 | `INVALID_SLACK_WEBHOOK` | Slack Webhook URLが不正 |
 | 404 | `DATA_NOT_FOUND` | 指定期間にデータなし |
 | 500 | `DATABASE_ERROR` | データベースエラー |
+| 500 | `SLACK_NOTIFICATION_ERROR` | Slack通知送信エラー |
 | 500 | `INTERNAL_ERROR` | 内部処理エラー |
 | 503 | `SERVICE_UNAVAILABLE` | サービス利用不可 |
 
@@ -513,6 +774,7 @@ GET /api/v1/profit-trends/summary
 ```http
 GET /api/v1/profit-trends
 Authorization: Bearer YOUR_API_KEY
+X-Slack-Webhook: https://hooks.slack.com/services/...
 ```
 
 #### 4.3.2 JWT トークン認証
@@ -529,6 +791,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 | データ取得API | 100リクエスト/分 | 1分 |
 | チャート生成API | 20リクエスト/分 | 1分 |
 | 統計情報API | 50リクエスト/分 | 1分 |
+| Slack通知API | 10リクエスト/分 | 1分 |
 
 ## 5. SDK設計
 
@@ -543,9 +806,10 @@ import (
 )
 
 type Client struct {
-    baseURL    string
-    apiKey     string
-    httpClient *http.Client
+    baseURL     string
+    apiKey      string
+    slackWebhook string
+    httpClient  *http.Client
 }
 
 type ProfitTrendsOptions struct {
@@ -554,6 +818,13 @@ type ProfitTrendsOptions struct {
     CompanyIDs   []int
     WarehouseIDs []int
     Format       string
+    NotifySlack  bool
+}
+
+type SlackNotificationOptions struct {
+    WebhookURL      string
+    MessageTemplate string
+    Channel         string
 }
 
 func NewClient(baseURL, apiKey string) *Client {
@@ -562,6 +833,10 @@ func NewClient(baseURL, apiKey string) *Client {
         apiKey:     apiKey,
         httpClient: &http.Client{Timeout: 30 * time.Second},
     }
+}
+
+func (c *Client) SetSlackWebhook(webhookURL string) {
+    c.slackWebhook = webhookURL
 }
 
 func (c *Client) GetProfitTrends(ctx context.Context, opts *ProfitTrendsOptions) (*ProfitTrendsResponse, error) {
@@ -573,6 +848,10 @@ func (c *Client) GetChart(ctx context.Context, opts *ChartOptions) (string, erro
 }
 
 func (c *Client) GetSummary(ctx context.Context, opts *SummaryOptions) (*SummaryResponse, error) {
+    // Implementation
+}
+
+func (c *Client) SendSlackNotification(ctx context.Context, opts *SlackNotificationOptions) error {
     // Implementation
 }
 ```
@@ -591,11 +870,19 @@ class ProfitTrendsOptions:
     company_ids: Optional[List[int]] = None
     warehouse_ids: Optional[List[int]] = None
     format: str = "json"
+    notify_slack: bool = False
+
+@dataclass
+class SlackNotificationOptions:
+    webhook_url: str
+    message_template: str = "default"
+    channel: Optional[str] = None
 
 class ProfitTrendClient:
-    def __init__(self, base_url: str, api_key: str):
+    def __init__(self, base_url: str, api_key: str, slack_webhook: str = None):
         self.base_url = base_url
         self.api_key = api_key
+        self.slack_webhook = slack_webhook
         
     def get_profit_trends(self, options: ProfitTrendsOptions) -> dict:
         """粗利トレンドデータを取得"""
@@ -608,6 +895,10 @@ class ProfitTrendClient:
     def get_summary(self, options: dict) -> dict:
         """サマリー情報を取得"""
         pass
+        
+    def send_slack_notification(self, options: SlackNotificationOptions) -> bool:
+        """Slack通知を送信"""
+        pass
 ```
 
 ## 6. OpenAPI仕様
@@ -618,8 +909,8 @@ class ProfitTrendClient:
 openapi: 3.0.3
 info:
   title: Profit Trend Display API
-  description: 粗利推移分析・表示API
-  version: 1.0.0
+  description: 粗利推移分析・表示API（Slack通知機能付き）
+  version: 1.1.0
   contact:
     name: API Support
     email: api-support@company.com
@@ -662,6 +953,12 @@ paths:
             type: array
             items:
               type: integer
+        - name: notify_slack
+          in: query
+          description: Slack通知有効化
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: 成功
@@ -669,6 +966,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProfitTrendsResponse'
+        '400':
+          description: リクエストエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /profit-trends/notify:
+    post:
+      summary: Slack通知送信
+      description: 粗利分析結果をSlackに通知します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlackNotificationRequest'
+      responses:
+        '200':
+          description: 通知送信成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
         '400':
           description: リクエストエラー
           content:
@@ -687,6 +1008,55 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProfitTrend'
+    
+    ResponseMeta:
+      type: object
+      properties:
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        total_organizations:
+          type: integer
+        total_data_points:
+          type: integer
+        slack_notified:
+          type: boolean
+    
+    SlackNotificationRequest:
+      type: object
+      required:
+        - webhook_url
+      properties:
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        webhook_url:
+          type: string
+          format: uri
+        message_template:
+          type: string
+          enum: [default, summary, detailed]
+          default: default
+    
+    NotificationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, failed]
+        message:
+          type: string
+        notification_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
     
     ProfitTrend:
       type: object
@@ -757,6 +1127,7 @@ security:
 | データ取得（30日） | < 500ms | < 2秒 |
 | チャート生成 | < 200ms | < 1秒 |
 | サマリー取得 | < 100ms | < 500ms |
+| Slack通知送信 | < 1秒 | < 10秒 |
 
 ### 7.2 スループット
 
@@ -765,6 +1136,7 @@ security:
 | 同時接続数 | 100 | 500 |
 | リクエスト/秒 | 50 | 200 |
 | データサイズ | 1MB | 10MB |
+| Slack通知/分 | 10 | 60 |
 
 ## 8. セキュリティ要件
 
@@ -774,10 +1146,24 @@ security:
 - **認証**: API Key または JWT Token
 - **認可**: ロールベースアクセス制御
 - **監査ログ**: 全APIアクセスの記録
+- **Slack Webhook保護**: URL暗号化・マスキング
 
 ### 8.2 入力検証
 
 ```go
+// Slack Webhook URL検証例
+func validateSlackWebhook(url string) error {
+    if !strings.HasPrefix(url, "https://hooks.slack.com/") {
+        return errors.New("invalid slack webhook URL")
+    }
+    
+    if len(url) > 500 {
+        return errors.New("webhook URL too long")
+    }
+    
+    return nil
+}
+
 // 入力検証例
 func validateDateRange(start, end time.Time) error {
     if start.After(end) {
@@ -803,6 +1189,8 @@ func validateDateRange(start, end time.Time) error {
 | `api_request_duration_seconds` | レスポンス時間 | > 2秒 |
 | `api_errors_total` | エラー総数 | > 5% |
 | `database_connections_active` | アクティブDB接続数 | > 80% |
+| `slack_notifications_total` | Slack通知総数 | - |
+| `slack_notification_errors_total` | Slack通知エラー数 | > 10% |
 
 ### 9.2 ログ形式
 
@@ -819,7 +1207,13 @@ func validateDateRange(start, end time.Time) error {
   "params": {
     "start_date": "2024-06-20",
     "end_date": "2024-07-20",
-    "days": 30
+    "days": 30,
+    "notify_slack": true
+  },
+  "slack_notification": {
+    "sent": true,
+    "webhook_hash": "sha256:abc123...",
+    "response_time_ms": 150
   }
 }
 ```
@@ -833,12 +1227,18 @@ func validateDateRange(start, end time.Time) error {
    - Server-Sent Events
    - Push通知
 
-2. **分析機能強化**
+2. **通知機能強化**
+   - Microsoft Teams連携
+   - Discord連携
+   - メール通知
+   - SMS通知
+
+3. **分析機能強化**
    - 予測分析API
    - 異常検知API
    - 比較分析API
 
-3. **出力形式拡張**
+4. **出力形式拡張**
    - PDF レポート生成
    - Excel ファイル出力
    - SVG/PNG チャート
@@ -854,3 +1254,8 @@ func validateDateRange(start, end time.Time) error {
    - マルチリージョン展開
    - 障害時フェイルオーバー
    - サーキットブレーカー
+
+3. **通知システム強化**
+   - 通知キューイング
+   - 重複排除
+   - 配信保証

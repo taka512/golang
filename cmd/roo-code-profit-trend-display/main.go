@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"profit-trend-display/internal/chart"
 	"profit-trend-display/internal/database"
 	"profit-trend-display/internal/models"
+	"profit-trend-display/internal/notification"
 )
 
 const (
@@ -21,14 +23,15 @@ const (
 func main() {
 	// Command line flags
 	var (
-		dsn        = flag.String("dsn", defaultDSN, "Database connection string")
-		days       = flag.Int("days", defaultDays, "Number of days to analyze (default: 30)")
-		width      = flag.Int("width", 60, "Chart width (default: 60)")
-		height     = flag.Int("height", 15, "Chart height (default: 15)")
-		showGrid   = flag.Bool("grid", true, "Show grid lines (default: true)")
-		showStats  = flag.Bool("stats", true, "Show statistics (default: true)")
+		dsn         = flag.String("dsn", defaultDSN, "Database connection string")
+		days        = flag.Int("days", defaultDays, "Number of days to analyze (default: 30)")
+		width       = flag.Int("width", 60, "Chart width (default: 60)")
+		height      = flag.Int("height", 15, "Chart height (default: 15)")
+		showGrid    = flag.Bool("grid", true, "Show grid lines (default: true)")
+		showStats   = flag.Bool("stats", true, "Show statistics (default: true)")
 		summaryOnly = flag.Bool("summary", false, "Show only summary (default: false)")
-		help       = flag.Bool("help", false, "Show help message")
+		slackNotify = flag.Bool("slack", false, "Send notification to Slack (default: false)")
+		help        = flag.Bool("help", false, "Show help message")
 	)
 
 	flag.Parse()
@@ -46,14 +49,42 @@ func main() {
 		}
 	}
 
+	// Initialize Slack notifier if enabled
+	var slackNotifier *notification.SlackNotifier
+	if *slackNotify {
+		slackHookURL := os.Getenv("SLACK_HOOK")
+		if slackHookURL != "" {
+			slackNotifier = notification.NewSlackNotifier(slackHookURL)
+			log.Println("Slack通知が有効です")
+		} else {
+			log.Println("SLACK_HOOK環境変数が未設定のため、Slack通知を無効にします")
+		}
+	}
+
 	fmt.Printf("=== 粗利推移表示プログラム ===\n")
 	fmt.Printf("分析期間: 過去%d日間\n", *days)
-	fmt.Printf("接続先: %s\n", *dsn)
+	
+	// Mask password in DSN for display
+	maskedDSN := maskPassword(*dsn)
+	fmt.Printf("接続先: %s\n", maskedDSN)
+	
+	if slackNotifier != nil && slackNotifier.IsEnabled() {
+		fmt.Println("Slack通知: 有効")
+	}
 	fmt.Println()
 
 	// Initialize database repository
 	repo, err := database.NewProfitRepository(*dsn)
 	if err != nil {
+		log.Printf("データベース接続エラー: %v", err)
+		
+		// Send error notification to Slack if enabled
+		if slackNotifier != nil && slackNotifier.IsEnabled() {
+			if notifyErr := slackNotifier.SendError(err); notifyErr != nil {
+				log.Printf("Slack通知送信エラー: %v", notifyErr)
+			}
+		}
+		
 		log.Fatalf("データベース接続エラー: %v", err)
 	}
 	defer repo.Close()
@@ -70,6 +101,15 @@ func main() {
 	fmt.Println("データを取得中...")
 	profitData, err := repo.GetProfitTrendsForPeriod(startDate, endDate)
 	if err != nil {
+		log.Printf("データ取得エラー: %v", err)
+		
+		// Send error notification to Slack if enabled
+		if slackNotifier != nil && slackNotifier.IsEnabled() {
+			if notifyErr := slackNotifier.SendError(err); notifyErr != nil {
+				log.Printf("Slack通知送信エラー: %v", notifyErr)
+			}
+		}
+		
 		log.Fatalf("データ取得エラー: %v", err)
 	}
 
@@ -132,7 +172,19 @@ func main() {
 		fmt.Print(chartRenderer.RenderSummary(trends))
 	}
 
-	fmt.Println("分析完了!")
+	// Send Slack notification if enabled
+	if slackNotifier != nil && slackNotifier.IsEnabled() {
+		fmt.Println("\nSlack通知を送信中...")
+		if err := slackNotifier.SendProfitSummary(trends, *days); err != nil {
+			log.Printf("Slack通知送信に失敗しました: %v", err)
+		} else {
+			fmt.Println("Slack通知送信完了")
+		}
+	} else if *slackNotify {
+		fmt.Println("\nSlack通知が無効のため、通知をスキップします")
+	}
+
+	fmt.Println("\n分析完了!")
 }
 
 func showHelp() {
@@ -149,13 +201,19 @@ func showHelp() {
 	fmt.Println("  -grid             グリッド線を表示 (default: true)")
 	fmt.Println("  -stats            統計情報を表示 (default: true)")
 	fmt.Println("  -summary          サマリーのみ表示 (default: false)")
+	fmt.Println("  -slack            Slack通知を有効化 (default: false)")
 	fmt.Println("  -help             このヘルプを表示")
+	fmt.Println()
+	fmt.Println("環境変数:")
+	fmt.Println("  SLACK_HOOK        SlackのIncoming Webhook URL")
 	fmt.Println()
 	fmt.Println("例:")
 	fmt.Println("  profit-trend-display                    # デフォルト設定で実行")
 	fmt.Println("  profit-trend-display -days 7            # 過去7日間を分析")
 	fmt.Println("  profit-trend-display -summary           # サマリーのみ表示")
-	fmt.Println("  profit-trend-display -width 80 -height 20  # グラフサイズ変更")
+	fmt.Println("  profit-trend-display -slack             # Slack通知付きで実行")
+	fmt.Println("  profit-trend-display -slack -days 14 -summary  # 14日間サマリーをSlack通知")
+	fmt.Println("  profit-trend-display -width 80 -height 20      # グラフサイズ変更")
 	fmt.Println()
 	fmt.Println("機能:")
 	fmt.Println("  - 売上データと原価データから粗利を計算")
@@ -163,4 +221,23 @@ func showHelp() {
 	fmt.Println("  - テキストベースのグラフで推移を視覚化")
 	fmt.Println("  - 統計情報（最大・最小・平均・合計）を表示")
 	fmt.Println("  - 欠損日のデータは0として補完")
+	fmt.Println("  - Slack通知による結果共有")
+}
+
+// maskPassword masks the password in DSN for display purposes
+func maskPassword(dsn string) string {
+	// Simple password masking: replace password with ***
+	parts := strings.Split(dsn, "@")
+	if len(parts) != 2 {
+		return dsn
+	}
+	
+	userInfo := parts[0]
+	if colonIndex := strings.LastIndex(userInfo, ":"); colonIndex != -1 {
+		username := userInfo[:colonIndex]
+		masked := username + ":***"
+		return masked + "@" + parts[1]
+	}
+	
+	return dsn
 }
