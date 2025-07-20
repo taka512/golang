@@ -101,6 +101,9 @@ AI automatically determines and proceeds through these steps, providing delivera
 - Implement error handling properly
 - Comment only where necessary
 
+### Makefile principles
+- When modifying the Makefile, make sure that execution lines start with a tab.
+
 ### Testing
 - Unit tests for major functions
 - Consider edge cases

@@ -23,4 +23,12 @@ bin:
 build-with-dir: bin
 	go build -o bin/$(BINARY_NAME) .
 
+help:
+    @grep -E '^[a-zA-Z\/_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+docker/build: ## コンテナビルド
+	docker build ./ -t $(BINARY_NAME)
+docker/run: docker/build ## コンテナ実行
+	docker run --network=golang_mynetwork -t $(BINARY_NAME)
+
 all: deps build-with-dir

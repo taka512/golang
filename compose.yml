@@ -10,6 +10,8 @@ services:
       - ./:/app
     working_dir: /app
     tty: true
+    networks:
+      - mynetwork
   mysql:
     container_name: mysql.local
     image: mysql:8.0
@@ -24,6 +26,11 @@ services:
       - db-data:/var/lib/mysql:delegated
       - ./docker/mysql/conf/my80.cnf:/etc/mysql/my.cnf:cached
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:cached
+    networks:
+      - mynetwork
 volumes:
   db-data:
     driver: local
+networks:
+  mynetwork:
+    driver: bridge
