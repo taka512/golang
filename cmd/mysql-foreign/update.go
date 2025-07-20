@@ -14,7 +14,7 @@ func main() {
 	flag.Parse()
 	fmt.Printf("col:%s\n", *f)
 
-	db, err := sql.Open("mysql", "root:mypass@(go.mysql.local:3307)/test")
+	db, err := sql.Open("mysql", "root:mypass@(mysql.local:3306)/test")
 	if err != nil {
 		fmt.Println("db error.")
 		panic(err)

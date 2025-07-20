@@ -14,7 +14,7 @@ func main() {
 	flag.Parse()
 	fmt.Printf("table:%s\n", *f)
 
-	db, err := sql.Open("mysql", "root:mypass@(go.mysql.local:3307)/test?autocommit=0")
+	db, err := sql.Open("mysql", "root:mypass@(mysql.local:3306)/test?autocommit=0")
 	if err != nil {
 		panic(err)
 	}

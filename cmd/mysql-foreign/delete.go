@@ -13,7 +13,7 @@ func main() {
 	flag.Parse()
 	fmt.Printf("table:%s\n", *f)
 
-	db, err := sql.Open("mysql", "root:mypass@(go.mysql.local:3307)/test")
+	db, err := sql.Open("mysql", "root:mypass@(mysql.local:3306)/test")
 	if err != nil {
 		panic(err)
 	}
