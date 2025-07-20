@@ -1,4 +1,4 @@
-INSERT INTO company_account_titles (code, name)
+INSERT INTO sales_account_titles (code, name)
 VALUES
 ('warehousing', '入荷'),
 ('storage', '保管'),

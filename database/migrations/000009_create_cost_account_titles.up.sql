@@ -1,4 +1,4 @@
-CREATE TABLE `sales_account_titles` (
+CREATE TABLE `cost_account_titles` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `code` varchar(16) NOT NULL COMMENT '科目コード',
   `name` varchar(32) NOT NULL COMMENT '科目名',
@@ -6,5 +6,5 @@ CREATE TABLE `sales_account_titles` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_sales_account_titles_code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='売上科目'
+  UNIQUE KEY `uniq_cost_account_titles_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='原価科目'

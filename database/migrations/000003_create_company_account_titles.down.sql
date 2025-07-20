@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS company_account_titles;
+DROP TABLE IF EXISTS sales_account_titles;
