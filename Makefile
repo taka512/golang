@@ -20,13 +20,14 @@ docker/ssh: ## コンテナにsshで接続
 	docker exec -it -e COLUMNS=$(shell tput cols) -e LINES=$(shell tput lines) $(CONTAINER) bash
 mysql/ssh:
 	mysql -h 127.0.0.1 -u root -pmypass sample_mysql 
-docker/login:
+docker/ecr/login:
 	aws ecr get-login-password | docker login --username AWS --password-stdin $(ECR_DOMAIN)
-docker/push: docker/login
-	docker tag $(NAME) $(ECR_DOMAIN)/golang-hello
-	docker push $(ECR_DOMAIN)/golang-hello
-#	docker tag $(NAME) $(ECR_DOMAIN)/$(NAME)
-#	docker push $(ECR_DOMAIN)/$(NAME)
+docker/ecr/desc: docker/ecr/login
+	aws ecr describe-repositories --region ap-northeast-1
+docker/ecr/push: docker/ecr/login
+	docker tag $(NAME) $(ECR_DOMAIN)/golang-$(NAME)
+	docker push $(ECR_DOMAIN)/golang-$(NAME)
+
 docker/db/migrate/up: ## apply for db
 	docker exec $(CONTAINER) make db/migrate/up
 docker/db/migrate/down: ## back for db

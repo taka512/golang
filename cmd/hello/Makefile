@@ -1,4 +1,4 @@
-NAME  :=hello
+NAME :=hello
 FILE :=main
 
 help:
@@ -10,6 +10,6 @@ run: build
 	./$(FILE)
 
 docker/build: ## コンテナビルド
-	docker build ./ -t $(NAME)
+	docker build --platform linux/amd64  ./ -t $(NAME)
 docker/run: docker/build ## コンテナ実行
 	docker run -t $(NAME)
